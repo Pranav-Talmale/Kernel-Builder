@@ -1,0 +1,23 @@
+env:
+
+    # Cirrus Specific Vars (Do *NOT* Change)
+    CIRRUS_SHELL: bash
+
+task:
+  name: "Kernel Build"
+  timeout_in: 120m
+  container:
+      image: ghcr.io/sushrut1101/docker:arch
+      cpu: 8
+      memory: 20G
+
+  Sync_script:
+      - curl -sL https://raw.githubusercontent.com/Pranav-Talmale/Kernel-Builder/lisa/sync.sh | bash
+      
+  Build_script:
+     - curl -sL https://raw.githubusercontent.com/Pranav-Talmale/Kernel-Builder/lisa/build.sh | bash
+     
+  Upload_script:
+      - export TIMEOUT=43200 # Link timeout (in minutes)
+      - curl -sL https://raw.githubusercontent.com/Pranav-Talmale/Kernel-Builder/lisa/upload.sh | bash
+

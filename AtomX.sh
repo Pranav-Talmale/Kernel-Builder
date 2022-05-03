@@ -1,8 +1,10 @@
+#!/bin/bash
+
 #########################    CONFIGURATION    ##############################
 
 # User details
-KBUILD_USER="AtomX"
-KBUILD_HOST="Drone"
+KBUILD_USER="Pranav-Talmale"
+KBUILD_HOST="AsusZephyrusG14"
 
 # Build type (Fresh build: clean | incremental build: dirty)
 # (default: dirty | modes: clean, dirty)
@@ -10,41 +12,58 @@ BUILD='clean'
 
 ############################################################################
 
-########################    DIRECTOR PATHS   ###############################
+########################   DIRECTORY PATHS   ###############################
 
 # Kernel Directory
 KERNEL_DIR=`pwd`
 
 # Propriatary Directory (default paths may not work!)
-PRO_PATH="$KERNEL_DIR/.."
+PRO_PATH="$KERNEL_DIR/"
+
+# Toolchain Directory
+TLDR="$PRO_PATH/toolchains"
 
 # Anykernel Directories
 AK3_DIR="$PRO_PATH/AnyKernel3"
 AKSH="$AK3_DIR/anykernel.sh"
 AKVDR="$AK3_DIR/modules/vendor/lib/modules"
 
-# Toolchain Directory
-TLDR="$PRO_PATH/toolchains"
-
 # Device Tree Blob Directory
 DTB_PATH="$KERNEL_DIR/work/arch/arm64/boot/dts/vendor/qcom"
 
 ############################################################################
 
-###############################   MISC   #################################
+###############################   COLORS   #################################
+
+R='\033[1;31m'
+G='\033[1;32m'
+Y='\033[1;33m'
+B='\033[1;34m'
+W='\033[1;37m'
+
+############################################################################
+
+################################   MISC   ##################################
 
 # functions
 error() {
-	telegram-send "Error⚠️: $@"
+	echo -e ""
+	echo -e "$R ${FUNCNAME[0]}: $W$@"
+	echo -e ""
 	exit 1
 }
 
 success() {
-	telegram-send "Success: $@"
+	echo -e ""
+	echo -e "$G ${FUNCNAME[1]}: $W$@"
+	echo -e ""
+	exit 0
 }
 
 inform() {
-	telegram-send --format html "$@"
+	echo -e ""
+	echo -e "$B ${FUNCNAME[1]}: $W$@$G"
+	echo -e ""
 }
 
 muke() {
@@ -55,6 +74,8 @@ usage() {
 	inform " ./AtomX.sh <arg>
 		--compiler   sets the compiler to be used
 		--device     sets the device for kernel build
+		--dtbs       Builds dtbs, dtbo & dtbo.img
+		--regen      Regenerates defconfig (makes savedefconfig)
 		--silence    Silence shell output of Kbuild"
 	exit 2
 }
@@ -66,7 +87,7 @@ compiler_setup() {
 	MAKE_ARGS=()
 	# default to clang
 	CC='clang'
-	C_PATH="$TLDR/$CC"
+	C_PATH="$TLDR/clang"
 	LLVM_PATH="$C_PATH/bin"
 	if [[ $COMPILER == gcc ]]; then
 		# Just override the existing declarations
@@ -88,13 +109,50 @@ compiler_setup() {
 ############################################################################
 }
 
-kernel_builder() {
-##################################  BUILD  #################################
+config_generator() {
+#########################  .config GENERATOR  ############################
 	if [[ -z $CODENAME ]]; then
 		error 'Codename not present connot proceed'
 		exit 1
 	fi
 
+	DFCF="vendor/${CODENAME}-${SUFFIX}_defconfig"
+	if [[ ! -f arch/arm64/configs/$DFCF ]]; then
+		inform "Genertating defconfig"
+
+		export ${MAKE_ARGS[@]} TARGET_BUILD_VARIANT=user
+
+		bash scripts/gki/generate_defconfig.sh "${CODENAME}-${SUFFIX}_defconfig"
+		muke vendor/${CODENAME}-${SUFFIX}_defconfig vendor/lahaina_QGKI.config 
+	else
+		inform "Genertating .config"
+
+		# Make .config
+		muke $DFCF
+	fi
+	if [[ "$TEST" == "1" ]]; then
+		./scripts/config --file work/.config -d CONFIG_LTO_CLANG
+		./scripts/config --file work/.config -d CONFIG_HEADERS_INSTALL
+	fi
+############################################################################
+}
+
+config_regenerator() {
+########################  DEFCONFIG REGENERATOR  ###########################
+	config_generator
+
+	inform "Regenertating defconfig"
+
+	muke savedefconfig
+
+	cat work/defconfig > arch/arm64/configs/$DFCF
+
+	success "Regenertation completed"
+############################################################################
+}
+
+kernel_builder() {
+##################################  BUILD  #################################
 	case $BUILD in
 		clean)
 			rm -rf work || mkdir work
@@ -104,38 +162,38 @@ kernel_builder() {
 		;;
 	esac
 
-	# Build Start
-	BUILD_START=$(date +"%s")
+	config_generator
 
-	DFCF="vendor/${CODENAME}-${SUFFIX}_defconfig"
+	if [[ "$OBJ" != "" ]]; then
+		inform "Building $OBJ"
 
-	if [[ $PIXEL_THERMALS == "1" ]]; then
-		./scripts/config --file arch/arm64/configs/vendor/lisa-qgki_defconfig -d MI_THERMAL_CPU_THROTTLE
-		inform "building with pixel thermal support"
+		muke -j$(nproc) $OBJ
+
+		exit 0
 	fi
 
-	# Make .config
-	muke $DFCF
+	# Build Start
+	BUILD_START=$(date +"%s")
 
 	source work/.config
 	C_NAME=$(echo $CONFIG_CC_VERSION_TEXT | head -n 1 | perl -pe 's/\(http.*?\)//gs')
 	C_NAME_32=$($(echo ${MAKE_ARGS[@]} | sed s/' '/'\n'/g | grep CC_COMPAT | cut -c 11-) --version | head -n 1)
 
 	inform "
-		*************Build Triggered*************
-		Date: <code>$(date +"%Y-%m-%d %H:%M")</code>
-		Build Number: <code>$DRONE_BUILD_NUMBER</code>
-		Device: <code>$DEVICENAME</code>
-		Codename: <code>$CODENAME</code>
-		Compiler: <code>$C_NAME</code>
-		Compiler_32: <code>$C_NAME_32</code>
+	*************Build Triggered*************
+	Date: $(date +"%Y-%m-%d %H:%M")
+	Build Type: $BUILD_TYPE
+	Device: $DEVICENAME
+	Codename: $CODENAME
+	Compiler: $C_NAME
+	Compiler_32: $C_NAME_32
 	"
 
 	# Compile
 	muke -j$(nproc)
 
 	if [[ $CONFIG_MODULES == "y" ]]; then
-		muke -j$(nproc)        \
+		muke -j$(nproc)          \
 			'modules_install'    \
 			INSTALL_MOD_STRIP=1  \
 			INSTALL_MOD_PATH="modules"
@@ -149,7 +207,7 @@ kernel_builder() {
 	if [[ -f $KERNEL_DIR/work/arch/arm64/boot/$TARGET ]]; then
 		zipper
 	else
-		error 'Kernel image not found'
+		error 'Kernel image not found' || { echo "ERROR: Failed to Build Kernel!" && exit 1; }
 	fi
 ############################################################################
 }
@@ -157,7 +215,7 @@ kernel_builder() {
 zipper() {
 ####################################  ZIP  #################################
 	if [[ ! -d $AK3_DIR ]]; then
-		error 'Anykernel not present cannot zip'
+		error 'Anykernel not present cannot zip' || { echo "ERROR: Failed to zip Kernel!" && exit 1; }
 	fi
 	if [[ ! -d "$KERNEL_DIR/out" ]]; then
 		mkdir $KERNEL_DIR/out
@@ -177,36 +235,30 @@ zipper() {
 		sed -i 's/.*\///g' $AKVDR/modules.load
 	fi
 
-	VERSION=`echo $CONFIG_LOCALVERSION | cut -c 8-`
 	KERNEL_VERSION=$(make kernelversion)
 	LAST_COMMIT=$(git show -s --format=%s)
 	LAST_HASH=$(git rev-parse --short HEAD)
 
 	cd $AK3_DIR
 
-	make zip VERSION=$VERSION
+	make zip VERSION=`echo $CONFIG_LOCALVERSION | cut -c 8-`
 
 	inform "
-		*************AtomX-Kernel*************
-		Linux Version: <code>$KERNEL_VERSION</code>
-		AtomX-Version: <code>$VERSION</code>
-		CI: <code>$KBUILD_HOST</code>
-		Core count: <code>$(nproc)</code>
-		Compiler: <code>$C_NAME</code>
-		Compiler_32: <code>$C_NAME_32</code>
-		Device: <code>$DEVICENAME</code>
-		Codename: <code>$CODENAME</code>
-		Build Date: <code>$(date +"%Y-%m-%d %H:%M")</code>
-
-		-----------last commit details-----------
-		Last commit (name): <code>$LAST_COMMIT</code>
-
-		Last commit (hash): <code>$LAST_HASH</code>
+	*************Kernel-Builder*************
+	Linux Version: $KERNEL_VERSION
+	CI: $KBUILD_HOST
+	Core count: $(nproc)
+	Compiler: $C_NAME
+	Compiler_32: $C_NAME_32
+	Device: $DEVICENAME
+	Codename: $CODENAME
+	Build Date: $(date +"%Y-%m-%d %H:%M")
+	Build Type: $BUILD_TYPE
+	*****************************************
 	"
 
-	telegram-send --file *-signed.zip
+	cp *-signed.zip ~/work
 
-	make clean
 
 	cd $KERNEL_DIR
 
@@ -234,6 +286,9 @@ for arg in "$@"; do
 				;;
 			esac
 		;;
+		"--obj="*)
+			OBJ=${arg#*=}
+		;;
 		"--device="*)
 			CODE_NAME=${arg#*=}
 			case $CODE_NAME in
@@ -248,11 +303,21 @@ for arg in "$@"; do
 				;;
 			esac
 		;;
+		"--test")
+			TEST='1'
+			CODENAME=lahaina
+		;;
 		"--silence")
 			MAKE_ARGS+=("-s")
 		;;
-		"--pixel_thermals")
-			PIXEL_THERMALS='1'
+		"--log")
+			FLAG='2>&1 | tee ../log.txt'
+		;;
+		"--dtbs")
+			OBJ=dtbs
+		;;
+		"--regen")
+			config_regenerator
 		;;
 		*)
 			usage
@@ -260,9 +325,5 @@ for arg in "$@"; do
 	esac
 done
 ############################################################################
-
-# Remove testing of System.map as test always fails to check for file
-# DO NOT MODIFY!!!!
-sed -i '13d;14d;15d;16d;17d' $KERNEL_DIR/scripts/depmod.sh
 
 kernel_builder
