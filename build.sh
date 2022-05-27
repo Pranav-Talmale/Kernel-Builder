@@ -1,8 +1,11 @@
-#bin/#!/bin/bash
+#!/bin/bash
+
+# Source Vars
+source $CONFIG
 
 #Change to Kernel dir
 cd ~/work/Kernel
 
-. AtomX.sh --compiler=clang --device=lisa
+. $SCRIPT_NAME --$CUSTOM_ARG1=$CUSTOM_ANS1 --$CUSTOM_ARG2=$CUSTOM_ANS2 
 
 exit 0

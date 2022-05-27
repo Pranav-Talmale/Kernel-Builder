@@ -8,11 +8,11 @@ KBUILD_HOST="AsusZephyrusG14"
 
 # Build type (Fresh build: clean | incremental build: dirty)
 # (default: dirty | modes: clean, dirty)
-BUILD='clean'
+BUILD=clean
 
 ############################################################################
 
-########################   DIRECTORY PATHS   ###############################
+#########################    Directory Setup    ############################
 
 # Kernel Directory
 KERNEL_DIR=`pwd`

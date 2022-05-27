@@ -1,5 +1,8 @@
 env:
 
+    # Config
+    CONFIG: config.sh
+
     # Cirrus Specific Vars (Do *NOT* Change)
     CIRRUS_SHELL: bash
 
