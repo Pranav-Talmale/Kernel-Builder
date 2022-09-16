@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Kernel Source
-export KERNEL_SOURCE="https://github.com/Pranav-Talmale/android_kernel_xiaomi_sm7325.git -b codelinaro"
+export KERNEL_SOURCE="https://github.com/Atom-X-Devs/android_kernel_xiaomi_sm7325.git -b codelinaro"
 
 # Neutron clang
 #clang will be always cloned in toolchains/clang inside the kernel directory. Make sure to use proper paths in your build script
