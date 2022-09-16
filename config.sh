@@ -19,7 +19,7 @@ export BUILD_USE_TRB_CLANG=false
 export BUILD_CLONE_STANDARD_ANYKERNEL=false
 export BUILD_CLONE_CUSTOM_ANYKERNEL=true
 export ZIPPER_LINK="https://github.com/Atom-X-Devs/AnyKernel3 -b main"
-export ZIPPER_PATH="Kernel/AnyKernel13"  #mandatory
+export ZIPPER_PATH="Kernel/AnyKernel3"  #mandatory
 
 #Build Script (NOT NEEDED IF YOUR KERNEL SOURCE ALREADY HAS A BUILD SCRIPT INCLUDED)
 # You can use a custom build script to start the kernel build. Make sure the script does not have any interactions when the script executes, since 
